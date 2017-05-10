@@ -23,6 +23,8 @@ public class MainPanel extends JPanel
 	JTextArea txtNotificationText;
 	JButton btnSend;
 	JLabel lblStatus;
+	//
+	boolean sendAsync = false;
 	
 	public MainPanel()
 	{
@@ -95,10 +97,23 @@ public class MainPanel extends JPanel
 				}
 				else
 				{
-					String result = FirebaseHelper.SendNotification(txtServerKey.getText().trim(), 
-																	txtDeviceToken.getText().trim(), 
-																	txtNotificationTitle.getText().trim(), 
-																	txtNotificationText.getText().trim());
+					String result = "";
+					if (sendAsync)
+					{
+						result = FirebaseHelper.SendNotificationAsync(
+									txtServerKey.getText().trim(), 
+									txtDeviceToken.getText().trim(), 
+									txtNotificationTitle.getText().trim(), 
+									txtNotificationText.getText().trim());
+					}
+					else
+					{
+						result = FirebaseHelper.SendNotification(
+									txtServerKey.getText().trim(), 
+									txtDeviceToken.getText().trim(), 
+									txtNotificationTitle.getText().trim(), 
+									txtNotificationText.getText().trim());
+					}
 					lblStatus.setText(result);
 				}
 			}
