@@ -65,7 +65,7 @@ public class FirebaseHelper
 			notification.put("title", notificationTitle);
 			notification.put("body", notificationText);
 			notification.put("sound", "default");
-			notification.put("color", "#f7f46b");
+			notification.put("color", "#9134C1");
 			//
 			JSONObject json = new JSONObject();
 			json.put("to", deviceToken);
