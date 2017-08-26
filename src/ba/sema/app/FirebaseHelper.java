@@ -72,7 +72,7 @@ public class FirebaseHelper
 			json.put("notification", notification);
 			
 			System.out.println("Start: " + dateFormat.format(new java.util.Date()));
-			OutputStreamWriter wr = new OutputStreamWriter(conn.getOutputStream());
+			OutputStreamWriter wr = new OutputStreamWriter(conn.getOutputStream(), "UTF-8");
 			wr.write(json.toString());
 			wr.flush();
 			wr.close();
