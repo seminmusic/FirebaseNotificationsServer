@@ -1,27 +1,31 @@
 package ba.sema.app;
 
-import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.net.HttpURLConnection;
 import java.net.InetSocketAddress;
 import java.net.Proxy;
 import java.net.URL;
 import java.text.SimpleDateFormat;
-import java.util.concurrent.Future;
-
-import org.apache.http.HttpHost;
-import org.apache.http.HttpResponse;
-import org.apache.http.client.config.RequestConfig;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.entity.StringEntity;
-import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
-import org.apache.http.impl.nio.client.HttpAsyncClients;
+import java.util.HashMap;
+import java.util.Map;
+import org.asynchttpclient.AsyncCompletionHandler;
+import org.asynchttpclient.AsyncHttpClient;
+import org.asynchttpclient.AsyncHttpClientConfig;
+import org.asynchttpclient.DefaultAsyncHttpClient;
+import org.asynchttpclient.DefaultAsyncHttpClientConfig;
+import org.asynchttpclient.HttpResponseStatus;
+import org.asynchttpclient.Response;
+import org.asynchttpclient.proxy.ProxyServer;
 import org.json.JSONObject;
 
 
 public class FirebaseHelper 
 {
 	public final static String FIREBASE_FCM_URL = "https://fcm.googleapis.com/fcm/send";
+	
+	public final static boolean PROXY_ENABLED = Boolean.parseBoolean(PropertiesHelper.GetPropertyValue("Proxy_Enabled"));
+	public final static String PROXY_ADDRESS = PropertiesHelper.GetPropertyValue("Proxy_Address");
+	public final static int PROXY_PORT = Integer.parseInt(PropertiesHelper.GetPropertyValue("Proxy_Port"));
 	
 	public final static SimpleDateFormat dateFormat = new SimpleDateFormat("dd.MM.yyyy HH:mm:ss.SSS");
 	
@@ -34,15 +38,10 @@ public class FirebaseHelper
 		{
 			URL url = new URL(FIREBASE_FCM_URL);
 			
-			boolean useProxy = Boolean.parseBoolean(PropertiesHelper.GetPropertyValue("Proxy_Enabled"));
-			String proxyAddress = PropertiesHelper.GetPropertyValue("Proxy_Address");
-			int proxyPort = Integer.parseInt(PropertiesHelper.GetPropertyValue("Proxy_Port"));
-			// System.out.println("Proxy podaci:\n" + "Enabled: " + useProxy + "\nAdresa: " + proxyAddress + "\nPort: " + proxyPort);
-			
 			HttpURLConnection conn;
-			if (useProxy)
+			if (PROXY_ENABLED)
 			{
-				Proxy proxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress(proxyAddress, proxyPort));
+				Proxy proxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress(PROXY_ADDRESS, PROXY_PORT));
 				conn = (HttpURLConnection)url.openConnection(proxy);
 			}
 			else
@@ -58,10 +57,10 @@ public class FirebaseHelper
 			conn.setRequestProperty("Content-Type", "application/json");
 			
 			JSONObject notification = new JSONObject();
-//			notification.put("title", notificationTitle);
-//			notification.put("text", notificationText);
-//			notification.put("sound", "notification.mp3");
-//			notification.put("icon", "ic_launcher_sema");
+			// notification.put("title", notificationTitle);
+			// notification.put("text", notificationText);
+			// notification.put("sound", "notification.mp3");
+			// notification.put("icon", "ic_launcher_sema");
 			notification.put("title", notificationTitle);
 			notification.put("body", notificationText);
 			notification.put("sound", "default");
@@ -101,76 +100,124 @@ public class FirebaseHelper
 		return result;
 	}
 	
-	public static String SendNotificationAsync(String serverKey, String deviceToken, String notificationTitle, String notificationText)
+	public static void SendNotificationAsync(String serverKey, String deviceToken, String notificationTitle, String notificationText) 
 	{
-		String result = "";
+		JSONObject notification = new JSONObject();
+		// notification.put("title", notificationTitle);
+		// notification.put("text", notificationText);
+		// notification.put("sound", "notification.mp3");
+		// notification.put("icon", "ic_launcher_sema");
+		notification.put("title", notificationTitle);
+		notification.put("body", notificationText);
+		notification.put("sound", "default");
+		notification.put("color", "#9134C1");
+		//
+		JSONObject json = new JSONObject();
+		json.put("to", deviceToken);
+		json.put("notification", notification);
 		
-		CloseableHttpAsyncClient httpClient = HttpAsyncClients.createDefault();
+		AsyncHttpClient asyncHttpClient;
+		if (PROXY_ENABLED)
+		{
+			AsyncHttpClientConfig config = new DefaultAsyncHttpClientConfig.Builder().setProxyServer(new ProxyServer.Builder(PROXY_ADDRESS, PROXY_PORT)).build();
+			asyncHttpClient = new DefaultAsyncHttpClient(config);
+		}
+		else 
+		{
+			asyncHttpClient = new DefaultAsyncHttpClient();
+		}
+		
+		Map<String, String> headers = new HashMap<String, String>();
+		headers.put("Authorization", "key=" + serverKey);
+		headers.put("Content-Type", "application/json");
+		
 		try
 		{
-			boolean useProxy = Boolean.parseBoolean(PropertiesHelper.GetPropertyValue("Proxy_Enabled"));
-			String proxyAddress = PropertiesHelper.GetPropertyValue("Proxy_Address");
-			int proxyPort = Integer.parseInt(PropertiesHelper.GetPropertyValue("Proxy_Port"));
-			
-			httpClient.start();
-			
-			HttpPost request = new HttpPost(FIREBASE_FCM_URL);
-			if (useProxy)
+			asyncHttpClient
+				.preparePost(FIREBASE_FCM_URL)
+				.setCharset(java.nio.charset.StandardCharsets.UTF_8)
+				.setSingleHeaders(headers)
+				.setBody(json.toString())
+				.execute(new AsyncCompletionHandler<Response>() 
+				{
+					   @Override
+					   public State onStatusReceived(HttpResponseStatus status) throws Exception
+					   {
+						   System.out.println(dateFormat.format(new java.util.Date()) + " HTTP status received: " + status);
+						   asyncHttpClient.close();
+						   return super.onStatusReceived(status);
+					   }
+					   
+					   @Override
+					   public Response onCompleted(Response response) throws Exception
+					   {
+						   System.out.println(dateFormat.format(new java.util.Date()) + " HTTP response processing is finished:");
+						   System.out.println(response.toString());
+					       return response;
+					   }
+					    
+					   @Override
+					   public void onThrowable(Throwable t)
+					   {
+						   System.out.println(dateFormat.format(new java.util.Date()) + " Exception occurs during the processing of the response");
+					       t.printStackTrace();
+					   }
+				});
+		}
+		catch (Exception e) 
+		{
+			e.printStackTrace();
+		}
+	}
+	
+	public static void SimulateSlowHttpResponse(String url, int delayMilliseconds)
+	{
+		System.out.println(dateFormat.format(new java.util.Date()) + " Method call started");
+		
+		AsyncHttpClient asyncHttpClient;
+		if (PROXY_ENABLED)
+		{
+			AsyncHttpClientConfig config = new DefaultAsyncHttpClientConfig.Builder().setProxyServer(new ProxyServer.Builder(PROXY_ADDRESS, PROXY_PORT)).build();
+			asyncHttpClient = new DefaultAsyncHttpClient(config);
+		}
+		else 
+		{
+			asyncHttpClient = new DefaultAsyncHttpClient();
+		}
+		
+		String simulatorUrl = "http://slowwly.robertomurray.co.uk/delay/" + delayMilliseconds + "/url/" + url;
+		try
+		{
+			asyncHttpClient.prepareGet(simulatorUrl).execute(new AsyncCompletionHandler<Response>()
 			{
-				HttpHost proxy = new HttpHost(proxyAddress, proxyPort);
-	            RequestConfig config = RequestConfig.custom().setProxy(proxy).build();
-	            request.setConfig(config);
-			}
-			
-			request.setHeader("Authorization", "key=" + serverKey);
-			request.setHeader("Content-Type", "application/json");
-			
-			JSONObject notification = new JSONObject();
-			notification.put("title", notificationTitle);
-			notification.put("text", notificationText);
-			notification.put("sound", "notification.mp3");
-			notification.put("icon", "ic_launcher_sema");
-			//
-			JSONObject json = new JSONObject();
-			json.put("to", deviceToken);
-			json.put("notification", notification);
-			
-			request.setEntity(new StringEntity(json.toString()));
-			
-			System.out.println("Async Start: " + dateFormat.format(new java.util.Date()));
-			Future<HttpResponse> future = httpClient.execute(request, null);
-            HttpResponse response = future.get();
-            System.out.println("Async End:   " + dateFormat.format(new java.util.Date()));
-            
-            int responseCode = response.getStatusLine().getStatusCode();
-            String responseMessage = response.getStatusLine().getReasonPhrase();
-            System.out.println("Response: " + response.getStatusLine());
-            
-            if (responseCode == 200)
-            {
-            	result = "<html><font color='green'>Async - " + responseCode + " " + responseMessage + "</font></html>";
-            }
-            else
-			{
-				throw new Exception(responseMessage);
-			}
+				   @Override
+				   public State onStatusReceived(HttpResponseStatus status) throws Exception
+				   {
+					   System.out.println(dateFormat.format(new java.util.Date()) + " HTTP status line has been received: " + status);
+					   asyncHttpClient.close();
+					   return super.onStatusReceived(status);
+				   }
+				   
+				   @Override
+				   public Response onCompleted(Response response) throws Exception
+				   {
+				       System.out.println(dateFormat.format(new java.util.Date()) + " HTTP response processing is finished");
+				       return response;
+				   }
+				    
+				   @Override
+				   public void onThrowable(Throwable t)
+				   {
+				       System.out.println(dateFormat.format(new java.util.Date()) + " Unexpected exception occurs during the processing of the response");
+				       t.printStackTrace();
+				   }
+			});
 		}
 		catch (Exception e)
 		{
-			result = "<html><font color='red'>Async - " + e.getMessage() + "</font></html>";
-		}
-		finally
-		{
-			try
-			{
-				httpClient.close();
-			}
-			catch (IOException e)
-			{
-				e.printStackTrace();
-			}
+			e.printStackTrace();
 		}
 		
-		return result;
+		System.out.println(dateFormat.format(new java.util.Date()) + " Method call finished");
 	}
 }

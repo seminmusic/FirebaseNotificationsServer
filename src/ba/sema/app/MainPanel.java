@@ -3,6 +3,7 @@ package ba.sema.app;
 import java.awt.Dimension;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.text.SimpleDateFormat;
 
 import javax.swing.*;
 
@@ -10,6 +11,8 @@ import javax.swing.*;
 @SuppressWarnings("serial")
 public class MainPanel extends JPanel 
 {
+	public final static SimpleDateFormat dateFormat = new SimpleDateFormat("dd.MM.yyyy HH:mm:ss.SSS");
+	
 	String serverKey;
 	String deviceToken;
 	//
@@ -24,7 +27,8 @@ public class MainPanel extends JPanel
 	JButton btnSend;
 	JLabel lblStatus;
 	//
-	boolean sendAsync = false;
+	boolean sendAsync = true;
+	boolean slowHttp = false;
 	
 	public MainPanel()
 	{
@@ -100,11 +104,21 @@ public class MainPanel extends JPanel
 					String result = "";
 					if (sendAsync)
 					{
-						result = FirebaseHelper.SendNotificationAsync(
+						if (slowHttp)
+						{
+							System.out.println(dateFormat.format(new java.util.Date()) + " Main started");
+							FirebaseHelper.SimulateSlowHttpResponse("www.klix.ba", 5 * 1000);
+							System.out.println(dateFormat.format(new java.util.Date()) + " Main finished");
+						}
+						else
+						{
+							FirebaseHelper.SendNotificationAsync(
 									txtServerKey.getText().trim(), 
 									txtDeviceToken.getText().trim(), 
 									txtNotificationTitle.getText().trim(), 
-									txtNotificationText.getText().trim());
+									txtNotificationText.getText().trim()
+									);
+						}
 					}
 					else
 					{
@@ -112,7 +126,8 @@ public class MainPanel extends JPanel
 									txtServerKey.getText().trim(), 
 									txtDeviceToken.getText().trim(), 
 									txtNotificationTitle.getText().trim(), 
-									txtNotificationText.getText().trim());
+									txtNotificationText.getText().trim()
+									);
 					}
 					lblStatus.setText(result);
 				}
